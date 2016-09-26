@@ -1,8 +1,9 @@
 import urllib2
 from bs4 import BeautifulSoup
 import pymysql.cursors
-import datetime
-import os
+import re
+
+numerics = re.compile(r'[^\d\,\.]')
 
 url = "http://www.transfermarkt.com"
 leagues = ["/premier-league/startseite/wettbewerb/GB1",
@@ -30,7 +31,7 @@ def openpage(page):
     soup = BeautifulSoup(page, "lxml")
     return soup
 
-def scrapeleague(link):
+def scrapeleague(link, year):
     try:
         with connection.cursor() as cursor:
             soup = openpage(link);
@@ -47,20 +48,24 @@ def scrapeleague(link):
                                 age,
                                 foreignplayers,
                                 totmarketval,
-                                marketval)
-                            VALUES(%s, %s, %s, %s, %s, %s, %s)
+                                marketval,
+                                year)
+                            VALUES(%s, %s, %s, %s, %s, %s, %s, %s)
                         '''
 
                     fullname = tds[1].text
                     shortname = tds[2].text
                     squad = tds[3].text
-                    age = tds[4].text
-                    foreignplayers= tds[5].text
-                    totmarketval = tds[6].text
-                    marketval = tds[7].text
+                    age = numerics.sub('', tds[4].text)
+                    foreignplayers = tds[5].text
+                    totmarketval = numerics.sub('', tds[6].text)
+                    totmarketval = totmarketval.replace('.', '')
+                    marketval = numerics.sub('', tds[7].text)
+                    marketval = marketval.replace('.', '')
+                    year = year
 
                     try:
-                        cursor.execute(sql, (fullname, shortname, squad, age, foreignplayers, totmarketval, marketval))
+                        cursor.execute(sql, (fullname, shortname, squad, age, foreignplayers, totmarketval, marketval, year))
                         connection.commit()
                     except (pymysql.err.InternalError, pymysql.err.DataError) as e:
                         print e
@@ -75,4 +80,4 @@ for x in range(2000,2016):
     for league in leagues:
         leagueurl=url+league+"/plus/?saison_id="+str(x)
         print "scrapping: "+leagueurl
-        scrapeleague(leagueurl)
+        scrapeleague(leagueurl, x)
